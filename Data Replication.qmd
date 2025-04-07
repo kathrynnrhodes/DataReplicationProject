@@ -1,0 +1,150 @@
+---
+title: "Data Replication Project"
+format: html
+editor: visual
+---
+
+Analysis of the "Casorso et. al. 2023" paper
+
+This paper aimed to identify if the phylogeny of fruits and their subsequent seed dispersal by birds or mammals that consume them had any correlation to their ethanol content to gain a better understanding of the interactions between fruit traits and their seed dispersers that allow their survival. They hypothesized that seeds from fruits containing higher ethanol contents would be more likely to be dispersed by mammals than birds. To replicate the phylogenetic signal assessment from this paper (Pagel's Lambda), I performed as followed below:
+
+The first step was to make the phylogenetic tree text string for ease of creation later. I am not an ecologist nor am I very familiar with evolutionary ecology, but if I can do it you can too! Now, in order for you to be able to assess phylogenetic signal as done in this paper, you need to make what is called a "Newick string" for the tree. In a nutshell (or seed in this case, haha), it turns the visual pretty branches showing ancestry or relatedness into a line of commas and parenthesis. To do this, we will need the "Species List for Phylogenetic Tree" .csv and use the code below:
+```{r}
+#import species list
+library(ape)
+library(taxize)
+library(readr)
+url <- "https://raw.githubusercontent.com/kathrynnrhodes/DataReplicationProject/refs/heads/main/Casorso_et_al._2023_-_Species_List_for_Phylogenetic_Tree.csv"
+s <- read.csv(url, header = TRUE)
+head(s) #confirm it is the correct data set
+
+#creating the Newick phylogenetic tree
+classification_data <- classification(s$species, db = "ncbi") #retrieve the taxonomic hierarchy from online databases
+phylo_tree <- class2tree(classification_data) #creates the taxonomy-based tree structure
+write.tree(phylo_tree$phylo, file = "taxonomic_tree.nwk") #exports the tree in Newick format. this will show up in your files as "taxonomic_tree.nwk"
+
+#to convert this .nwk file into a text string that prints in the R console:
+newick_string <- readLines("taxonomic_tree.nwk", warn = FALSE) #this is what pulls the Newick file in as a text string.
+cat(newick_string) #this function is what prints the string into the console for easy copy and pasting later when coding the analysis.
+```
+
+
+To begin the analysis, I imported the data associated with the phylogenetic signal analysis ("Summary Statistics for Fruit Species.csv"). For ease of import, please copy the raw data URL located on the GitHub repository for this project. All files required for replication are located in this same "Data Wrangling" repository for ease of access. We will end up recreating the following 
+
+
+```{r}
+#| out-width: "60%"
+knitr::include_graphics("Figure 1.jpeg")
+# load in data
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(phylogram)
+library(caper)
+library(ggtree)
+url <- "https://raw.githubusercontent.com/kathrynnrhodes/DataReplicationProject/refs/heads/main/Casorso_et_al._2023_-_Summary_Statistics_for_Fruit_Species.csv"
+d <- read.csv(url, header = TRUE)
+head(d) # to ensure loaded in correctly
+
+#paste the Newick string phylogenetic tree with as text string (created in code block #1)
+phylo_text <- "(((((Aralia_excelsa:106.741411,((((Randia_monantha:5.771658,Genipa_americana:5.771659):1.094287,Alibertia_edulis:6.865946):21.159177,Guettarda_macrosperma:28.025122):39.70274,Tabernaemontana_odontadeniiflora:67.727863):39.013548):5.599318,(Bonellia_nervosa:86.954598,Diospyros_salicifolia:86.954597):25.386131):10.240299,(Davilla_kunthii:41.153098,Curatella_americana:41.153098):81.42793):1.153209,(((Vachellia_collinsii:112.701196,((((Ficus_ovalis:11.922425,Ficus_morazaniana:11.922425,Ficus_hondurensis:11.922425,Ficus_cotinifolia:11.922425,Ficus_obtusifolia:11.922426):29.83367,Maclura_tinctoria:41.756095):43.73732,Karwinskia_calderonii:85.493415):25.654592,Quercus_oleoides:111.148008):1.553188):3.084369,(((Byrsonima_crassifolia:94.865279,(Casearia_arguta:12.757844,Zuelania_guidonia:12.757845):82.107434):4.265254,Hirtella_racemosa:99.130532):12.295894,Sloanea_terniflora:111.426427):4.359138):2.793039,(((Carica_papaya:92.953137,(Malvaviscus_arboreus:38.361134,(Guazuma_ulmifolia:32.280668,Apeiba_tibourbou:32.280668):6.080466):54.592003):11.304922,((Trichilia_americana:66.889797,Simarouba_glauca:66.889797):13.028543,(Bursera_simaruba:51.559174,(Spondias_mombin:12.325391,Spondias_purpurea:12.325391):39.233783):28.359167):24.339718):12.735137,Psidium_guajava:116.993196):1.585408):5.155633)Pentapetalae:12.023828,((Bromelia_plumieri:15.541917,Bromelia_pinguin:15.541918):92.693235,Acrocomia_aculeata:108.235153):27.522912);"
+phylo_tree <- read.dendrogram(text = phylo_text)
+plot(phylo_tree, main = "Phylogenetic Tree")
+
+#reassigning with labels for ease of merging the phylogenetic tree and the ethanol data
+tree <- read.tree(text = phylo_text)
+rownames(d) <- d$Species
+mean_ethanol <- d$MeanEtOHProduced.ripe
+max_ethanol <- d$MaxEtOHProduced.ripe
+
+#merge phylogeny and the Summary Statistics data
+tree$node.label = NULL #must ignore node labels
+comp_data <- comparative.data(
+  phy = tree,                      # phylogenetic tree
+  data = d,                        # data frame with species and ethanol values
+  names.col = Species,             # column with species names
+  vcv = TRUE,                      # calculate variance-covariance matrix
+  na.omit = FALSE                  # handle missing data
+)
+
+p <- ggtree(tree)
+p <- p %<+% data.frame(
+  label = tree$tip.label,
+  ethanol = mean_ethanol[tree$tip.label])
+p + geom_tippoint(aes(color=ethanol), size=3)
+print(p) #this is essentially the phylogenetic tree shown in Figure 1 minus the cute pictures of the fruits and the colors denoting respective ethanol level. 
+```
+
+
+Once the data was combined, the lambda analysis to confirm phylogenetic signal could be performed. We will (by the end of this) perform the same analysis used to make Table 1 of the paper:
+```{r}
+#| out-width: "60%"
+knitr::include_graphics("Table 1.jpeg")
+```
+
+
+```{r}
+#mean EtOH
+mean_etoh_lambda <- pgls(d$MeanEtOHProduced.ripe ~ 1, data = comp_data, lambda='ML')
+summary(mean_etoh_lambda)
+#lambda [ML] = 0.000, so not significantly different from 0 but is significantly different from 1. When 0 is equivalent to p > 0.05 and 1 is equivalent to p < 0.05, that means this is insignificant
+
+#max EtOH
+max_etoh_lambda <- pgls(d$MaxEtOHProduced.ripe ~ 1, data = comp_data, lambda='ML')
+summary(max_etoh_lambda)
+#lambda [ML] = 0.000, so not significantly different from 0. The authors said their lambda was closer to 1 indicating significant phylogenetic signal but I could not replicate this. 
+```
+
+
+With the Pagel's lambda analysis complete, the next step is replicating the data analysis done in the Casorso paper was to perform the PGLS (phylogenetic least squares regression) analysis; wherein the "Ethanol and Seed Dispersal Syndrome" dataset is required. This analysis is more to assess the effect of seed dispersal syndrome on both mean and maximum ethanol concentration within those fruits recorded in the raw dataset. 
+```{r}
+#load in the "Ethanol and Seed Dispersal Syndrome" .csv
+url <- "https://raw.githubusercontent.com/kathrynnrhodes/DataReplicationProject/refs/heads/main/Casorso_et_al._2023_-_Ethanol_and_Dispersal_Syndrome_1_%20(1).csv"
+df <- read.csv(url, header = TRUE) #assigned "df" since "d" was used previously for ease of referencing that is a new .csv entirely
+head(df) #ensure loaded in correctly
+
+#repeat same as performed in code block #2 to generate the tree
+phylo_text <- "(((((Aralia_excelsa:106.741411,((((Randia_monantha:5.771658,Genipa_americana:5.771659):1.094287,Alibertia_edulis:6.865946):21.159177,Guettarda_macrosperma:28.025122):39.70274,Tabernaemontana_odontadeniiflora:67.727863):39.013548):5.599318,Bonellia_nervosa:112.340729):10.240299,(Davilla_kunthii:41.153098,Curatella_americana:41.153098):81.42793):1.153209,(((Vachellia_collinsii:112.701196,((((Ficus_morazaniana:11.922425,Ficus_obtusifolia:11.922426):29.83367,Maclura_tinctoria:41.756095):43.73732,Karwinskia_calderonii:85.493415):25.654592,Quercus_oleoides:111.148008):1.553188):3.084369,(((Casearia_arguta:12.757844,Zuelania_guidonia:12.757845):86.372688,Hirtella_racemosa:99.130532):12.295894,Sloanea_terniflora:111.426427):4.359138):2.793039,(((Carica_papaya:92.953137,(Malvaviscus_arboreus:38.361134,(Guazuma_ulmifolia:32.280668,Apeiba_tibourbou:32.280668):6.080466):54.592003):11.304922,((Trichilia_americana:66.889797,Simarouba_glauca:66.889797):13.028543,(Bursera_simaruba:51.559174,Spondias_mombin:51.559174):28.359167):24.339718):12.735137,Psidium_guajava:116.993196):1.585408):5.155633):12.023828,(Bromelia_pinguin:108.235153,Acrocomia_aculeata:108.235153):27.522912);"
+phylo_tree <- read.dendrogram(text = phylo_text)
+plot(phylo_tree, main = "Phylogenetic Tree")
+
+tree <- read.tree(text = phylo_text)
+comp_data <- comparative.data(
+  phy = tree,
+  data = df,
+  names.col = Species,
+  vcv = TRUE,                     
+  na.omit = FALSE,
+  warn.dropped = TRUE)
+
+disperser <- df$Disperser2.3
+mean_etoh <- df$MeanEtOH.ripe
+max_etoh <- df$MaxEtOH.ripe
+```
+
+Now perform analysis again
+```{r}
+mean_etoh_lambda <- pgls(mean_etoh ~ disperser, data = comp_data, lambda = 'ML')
+summary(mean_etoh_lambda)
+#lambda = 0.000; no phylogenetic signal
+
+max_etoh_lambda <- pgls(max_etoh ~ disperser, data = comp_data, lambda = 'ML')
+summary(max_etoh_lambda)
+#lambda = 0.000; no phylogenetic signal
+```
+
+
+In this case, I was able to observe that there was no phylogenetic signal in mean ethanol concentration just as the authors of the paper. However, I was unable to replicate the Pagel's lambda analysis result of 0.82 for maximum ethanol concentration in ripe fruits. 
+
+```{r}
+#| include: false
+detach(package:taxize)
+detach(package:readr)
+detach(package:tidyverse)
+detach(package:dplyr)
+detach(package:ggplot2)
+detach(package:phylogram)
+detach(package:caper)
+detach(package:ggtree)
+```
+
