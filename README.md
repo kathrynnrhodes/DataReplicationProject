@@ -1,4 +1,7 @@
 # DataReplicationProject
+The Quarto document created for this assignment can be rendered into HTML for ease of viewing the figures, tables, and analyses. It is labelled under "Data Replication.qmd".
+
+
 The three files you will need to follow along with the Quarto document in order of use in the code chunks are as follows:
 1. Species List for Phylogenetic Tree.csv
 2. Summary Statistics for Fruit Species.csv
